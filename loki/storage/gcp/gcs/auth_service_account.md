@@ -94,7 +94,8 @@ Replace `<SECRET_NAME>` with a name for your secret, `<NAMESPACE>` with the K8s 
 
 Not all Loki / GEL services support ADC. Some use a hard-coded `service_account` that contains the entire JSON key file.
 
-> [!WARNING] This increases the risk that the JSON key could be leaked. For this reason, it's not recommended to use service account-based
+> [!WARNING]
+> This increases the risk that the JSON key could be leaked. For this reason, it's not recommended to use service account-based
 > authentication in production environments until ADC is supported across all services.
 
 The example below does not represent a complete `values.yaml` file, only the parameters that need to be updated to run Loki/GEL with service
