@@ -85,14 +85,16 @@ kubectl create secret generic <SECRET_NAME> \
   --from-file=key.json=<PATH_TO_JSON_KEY>
 ```
 
-Replace `<SECRET_NAME>` with a name for your secret, `<NAMESPACE>` with the K8s namespace Loki/GEL was installed in (if any), and `<PATH_TO_JSON_KEY>` with the
- path to the service account key JSON file. This is the same file created in the **Create a Service Account Key** step above.
+Replace `<SECRET_NAME>` with a name for your secret, `<NAMESPACE>` with the K8s namespace Loki/GEL was installed in (if any), and `<PATH_TO_JSON_KEY>`
+ with the path to the service account key JSON file. This is the same file created in the **Create a Service Account Key** step above.
 
 ## Helm
 
 ### values.yaml
 
-Not all Loki / GEL services support ADC. Some use a hard-coded `service_account` that contains the entire JSON key file.
+Loki/GEL services support the `service_account` method (not covered below / not recommended) as well as ADC. For more information, see
+ [How Application Default Credentials works](https://cloud.google.com/docs/authentication/application-default-credentials). In the example below,
+  we use the `GOOGLE_APPLICATION_CREDENTIALS` method.
 
 > [!WARNING]
 > This increases the risk that the JSON key could be leaked. For this reason, it's not recommended to use service account-based
@@ -102,7 +104,7 @@ The example below does not represent a complete `values.yaml` file, only the par
  acccount-based authentication.
 
 A Simple Scalable deployment breaks up Loki/GEL operations into distinct `read`, `write`, and `backend` services that can be scaled independently.
- If `enterprise.enabled` is set to `true`, there'll also be a `tokengen` job and and `admin_client` that need to connect to the storage backend.
+ If `enterprise.enabled` is set to `true`, there'll also be a `tokengen` job and and `adminApi` pod that need to connect to the storage backend.
 
 ```yaml
 backend:
@@ -132,8 +134,20 @@ enterprise:
         secret:
           secretName: <SECRET_NAME>
 
-loki:
+# GEL ONLY: adminApi
+adminApi:
+  env:
+    - name: GOOGLE_APPLICATION_CREDENTIALS
+      value: /etc/secrets/key.json
+  extraVolumeMounts:
+    - mountPath: /etc/secrets
+      name: <MOUNT_NAME>
+  extraVolumes:
+    - name: <MOUNT_NAME>
+      secret:
+        secretName: <SECRET_NAME>
 
+loki:
   schemaConfig:
     configs:
       - from: 2020-07-01
@@ -151,17 +165,6 @@ loki:
       # GEL ONLY: admin bucket
       admin: <ADMIN_BUCKET_NAME>
     type: gcs
-
-  # GEL ONLY: admin_client does not support ADC; hard-coded `service_account` is employed.
-  structuredConfig:
-    admin_client:
-      storage:
-        gcs:
-          service_account: |
-            {
-              "type":"service_account",
-              ...
-            }
 
 read:
   extraEnv:
