@@ -23,7 +23,8 @@ There are two methods to enable WIF for GKE.
 1. IAM principal authorization via Kubernetes `ServiceAccount`.
 2. Use Kubernetes `ServiceAccount` to impersonate an IAM service account.
 
-This document covers **IAM principal authorization**. Per GCP, linked service accounts should only be used if the limitations imposed by principal authorization causes problems. See **Resources > Authenticate to Google Cloud APIs from GKE workloads** for more information.
+This document covers **IAM principal authorization**. Per GCP, linked service accounts should only be used if the limitations
+imposed by principal authorization causes problems. See **Resources > Authenticate to Google Cloud APIs from GKE workloads** for more information.
 
 ### GKE
 
@@ -74,7 +75,8 @@ gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
   --condition=None
 ```
 
-Replace `<PROJECT_ID>` with the GCP project ID (ex. project-name), `<PROJECT_NUMBER>` with the project number (ex. 1234567890), `<NAMESPACE>` with the namespace where Loki/GEL is installed, and `<KSA_NAME>` with the name of the KSA you created above.
+Replace `<PROJECT_ID>` with the GCP project ID (ex. project-name), `<PROJECT_NUMBER>` with the project number (ex. 1234567890),
+`<NAMESPACE>` with the namespace where Loki/GEL is installed, and `<KSA_NAME>` with the name of the KSA you created above.
 
 For GEL, you'll also need bind the `tokenGen` KSA as well:
 
@@ -85,7 +87,9 @@ gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
   --condition=None
 ```
 
-The `tokenGen` KSA uses a fixed name: `enterprise-logs-tokengen`. It's defined [here](https://github.com/grafana/loki/blob/4b5925a28e61f29a20aaabda3a159386a8ba7638/production/helm/loki/templates/tokengen/_helpers.yaml), which is based on `loki.name` defined [here](https://github.com/grafana/loki/blob/716d54e2a9617a80c2496a46e9c4cbf8ed51a5d9/production/helm/loki/templates/_helpers.tpl). While it may be possible to modify the auto-generated `-tokengen` KSA, it's currently easier to simply grant it the same permissions as the KSA you created.
+The `tokenGen` KSA uses a fixed name: `enterprise-logs-tokengen`. It's defined [here](https://github.com/grafana/loki/blob/4b5925a28e61f29a20aaabda3a159386a8ba7638/production/helm/loki/templates/tokengen/_helpers.yaml),
+which is based on `loki.name` defined [here](https://github.com/grafana/loki/blob/716d54e2a9617a80c2496a46e9c4cbf8ed51a5d9/production/helm/loki/templates/_helpers.tpl).
+While it may be possible to modify the auto-generated `-tokengen` KSA, it's currently easier to simply grant it the same permissions as the KSA you created.
 
 ## Helm
 
@@ -94,7 +98,10 @@ The `tokenGen` KSA uses a fixed name: `enterprise-logs-tokengen`. It's defined [
 A Simple Scalable deployment breaks up Loki/GEL operations into distinct `read`, `write`, and `backend` services that can be scaled independently.
  If `enterprise.enabled` is set to `true`, there'll also be a `tokengen` job and an `adminApi` pod that need to connect to the storage backend.
 
-The `serviceAccount` is automatically applied to `read`, `write`, `backend`, and `adminApi`. The `tokenGen` job creates its own KSA, which necessitates the additional IAM policy binding in the **IAM > Add IAM Policy to Bucket(s)** step above.
+The example below does not represent a complete `values.yaml` file, only the parameters that need to be updated to run Loki/GEL with workload federation.
+
+The `serviceAccount` is automatically applied to `read`, `write`, `backend`, and `adminApi`. The `tokenGen` job creates its own KSA,
+which necessitates the additional IAM policy binding in the **IAM > Add IAM Policy to Bucket(s)** step above.
 
 ```yaml
 serviceAccount:
