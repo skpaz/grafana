@@ -136,6 +136,7 @@ enterprise:
 
 # GEL ONLY: adminApi
 adminApi:
+  # Note the use of `env` instead of `extraEnv` here.
   env:
     - name: GOOGLE_APPLICATION_CREDENTIALS
       value: /etc/secrets/key.json
