@@ -22,16 +22,18 @@ kubectl port-forward -n gel service/enterprise-logs-gateway 8080:80
 
 Send test logs:
 
-```txt
+```bash
 curl -v -H 'Content-Type: application/json' \
   -H "Authorization: Basic $(echo '<TENANT_NAME>:<TOKEN>' | base64)" \
   -s -X POST 'http://<URL>>:<PORT>/loki/api/v1/push' \
   --data-raw '{"streams":[{"stream":{"app":"test","env":"prod"},"values":[["<UNIX_EPOCH_IN_NANOSECONDS>", "test log message " ],["<UNIX_EPOCH_IN_NANOSECONDS>","test log message 2" ]]}]}'
 ```
 
+Replace `<TENANT_NAME>` with the name of your Loki/GEL tenant (ex. primary), `<TOKEN>` with an access token that has Loki read/write permissions, `<URL>` with the URL to your Loki/GEL install (or localhost, if applicable), `<PORT>` with the remote port or forwarded port, and `<UNIX_EPOCH_IN_NANOSECONDS>` with a UNIX timestamp in nanoseconds. 
+
 Example:
 
-```txt
+```bash
 curl -v -H 'Content-Type: application/json' \
   -H "Authorization: Basic $(echo 'primary:tokenbarfhere' | base64)" \
   -s -X POST 'http://localhost:8080/loki/api/v1/push' \
@@ -40,7 +42,7 @@ curl -v -H 'Content-Type: application/json' \
 
 If you don't want to include the token in each `curl` command, you could also assign it to variable.
 
-```txt
+```bash
 TOKEN=$(echo '<TENANT_NAME>:<TOKEN>' | base64)
 curl -v -H 'Content-Type: application/json' \
   -H "Authorization: Basic ${TOKEN}" \
@@ -52,18 +54,12 @@ curl -v -H 'Content-Type: application/json' \
 
 You can fetch a Unix timestamp in nanoseconds from macOS / Terminal:
 
-```txt
+```bash
 echo $(($(date +%s) * 1000000000))
 ```
 
 > NOTE: `%N` is not available in macOS.
 
 It should be similar in other *nix-based OSes, but `+%N` may be able to produce nanoseconds natively without math involved.
-
-For Windows / PowerShell, try:
-
-```powershell
-[int](Get-Date -UFormat %s) * 1000000000 -as [decimal]
-```
 
 You can also use a tool like [EpochConverter](https://www.epochconverter.com/) to generate a timestamp.
