@@ -75,9 +75,9 @@ gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
   --role=roles/storage.objectUser
 ```
 
-## Kubernetes
+### GKE
 
-### Create a Kubernetes Secret
+#### Create a Kubernetes Secret
 
 ```txt
 kubectl create secret generic <SECRET_NAME> \
@@ -97,14 +97,14 @@ Loki/GEL services support the `service_account` method (not covered below / not 
   we use the `GOOGLE_APPLICATION_CREDENTIALS` method.
 
 > [!WARNING]
-> This increases the risk that the JSON key could be leaked. For this reason, it's not recommended to use service account-based
-> authentication in production environments until ADC is supported across all services.
+> Use of the `service_account` method increases the risk that the JSON key could be leaked. For this reason, it's not recommended to use service account-based
+> authentication in production environments.
 
 The example below does not represent a complete `values.yaml` file, only the parameters that need to be updated to run Loki/GEL with service
  acccount-based authentication.
 
 A Simple Scalable deployment breaks up Loki/GEL operations into distinct `read`, `write`, and `backend` services that can be scaled independently.
- If `enterprise.enabled` is set to `true`, there'll also be a `tokengen` job and and `adminApi` pod that need to connect to the storage backend.
+ If `enterprise.enabled` is set to `true`, there'll also be a `tokengen` job and an `adminApi` pod that need to connect to the storage backend.
 
 ```yaml
 backend:
