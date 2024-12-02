@@ -1,4 +1,4 @@
-# GCP GCS Authentication via Workload Federation for Grafana Loki
+# GCP GCS Authentication via Workload Federation and Service Account for Grafana Loki
 
 ## Assumptions
 
@@ -23,11 +23,11 @@ There are two methods to enable WIF for GKE.
 1. IAM principal authorization via Kubernetes `ServiceAccount`.
 2. Use a Kubernetes `ServiceAccount` to impersonate an Google service account.
 
-This document covers **IAM principal authorization**, where a Kubernetes service account is bound directly to your GCS buckets via IAM policy in order to authenticate to the GCS API and access GCS resources.
+This document covers **service account impersonation**, where you link a Kubernetes service account to IAM in order to impersonate a Google Service Account in order to authenticate to the GCS API and access GCS resources.
 
 > [!WARNING]
-> Per GCP, service account impersonation should only be used if the limitations
-imposed by principal authorization causes problems. See **Resources > Authenticate to Google Cloud APIs from GKE workloads** for more information.
+> Per GCP, service account impersonation should only be used if the limitations imposed by principal authorization causes problems.
+ See **Resources > Authenticate to Google Cloud APIs from GKE workloads** for more information.
 
 ## Instructions
 
@@ -80,7 +80,51 @@ gcloud storage buckets create gs://loki-lab-chunks gs://loki-lab-ruler gs://loki
   --soft-delete-duration=7d
 ```
 
-### 3. Create a Kubernetes Namespace
+### 3. Create a Google Service Account
+
+Create a Google Service Account:
+
+```txt
+gcloud iam service-accounts create <GSA_NAME>
+```
+
+Replace `<GSA_NAME>` with the name of the service account you want to create.
+
+Example:
+
+```txt
+gcloud iam service-accounts create loki-lab-gsa
+```
+
+### 4. Bind GSA to Bucket(s)
+
+> [!INFO]
+> The [pre-defined `role/storage.objectUser` role](https://cloud.google.com/storage/docs/access-control/iam-roles) is sufficient for Loki / GEL to
+ operate. See [IAM permissions for Cloud Storage](https://cloud.google.com/storage/docs/access-control/iam-permissions) for details about each individual
+ permission. You can use this predefined role or create your own with matching permissions.
+
+Bind your GSA to your GCS bucket(s):
+
+```txt
+gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
+  --member=serviceAccount:<GSA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com \
+  --role=roles/storage.objectUser
+```
+
+Replace `<BUCKET_NAME>` with the name of the bucket(s) created above, `<GSA_NAME>` with the name of the GSA created above, and `<PROJECT_NAME>` with the
+ name of your GCP project.
+
+Unlike the `buckets create` command, this command only supports one bucket at a time.
+
+Example:
+
+```txt
+gcloud storage buckets add-iam-policy-binding gs://loki-lab-chunks \
+  --member=serviceAccount:loki-lab-gsa@loki-lab-project.iam.gserviceaccount.com \
+  --role=roles/storage.objectUser
+```
+
+### 5. Create a Kubernetes Namespace
 
 Create a K8s namespace where you'll install your Loki/GEL workloads:
 
@@ -96,7 +140,7 @@ Example:
 kubectl create namespace loki
 ```
 
-### 4. Create Kubernetes Service Account
+### 6. Create Kubernetes Service Account
 
 Create a KSA on your K8s cluster:
 
@@ -114,55 +158,51 @@ kubectl create serviceaccount loki-lab-ksa \
   --namespace loki
 ```
 
-### 5. Add IAM Policy to Bucket(s)
+### 7. Annotate the KSA to Impersonate the GSA
 
-> [!INFO]
-> The [pre-defined `role/storage.objectUser` role](https://cloud.google.com/storage/docs/access-control/iam-roles) is sufficient for Loki / GEL to
- operate. See [IAM permissions for Cloud Storage](https://cloud.google.com/storage/docs/access-control/iam-permissions) for details about each individual
- permission. You can use this predefined role or create your own with matching permissions.
-
-Create an IAM policy binding on the bucket(s) using the KSA created previously and the role(s) of your choice. One command per bucket.
+Add an annotation to the KSA so it can impersonate the GSA:
 
 ```txt
-gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
-  --role=roles/storage.objectViewer \
-  --member=principal://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<PROJECT_ID>.svc.id.goog/subject/ns/<NAMESPACE>/sa/<KSA_NAME> \
-  --condition=None
+kubectl annotate serviceaccount <KSA_NAME> \
+  --namespace <NAMESPACE> \
+  iam.gke.io/gcp-service-account=<GSA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com
 ```
 
-Replace `<PROJECT_ID>` with the GCP project ID (ex. project-name), `<PROJECT_NUMBER>` with the project number (ex. 1234567890),
-`<NAMESPACE>` with the namespace where Loki/GEL is installed, and `<KSA_NAME>` with the name of the KSA you created above.
+Replace `<KSA_NAME>` with the name of the KSA created above, `<NAMESPACE>` with the namespace where your Loki/GEL workloads are located,
+ `<GSA_NAME>` with the name of the GSA created above, and `<PROJECT_NAME>` with the name of your GCP project.
 
 Example:
 
 ```txt
-gcloud storage buckets add-iam-policy-binding gs://loki-lab-chunks \
-  --role=roles/storage.objectViewer \
-  --member=principal://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/loki-lab.svc.id.goog/subject/ns/loki/sa/loki-lab-ksa \
-  --condition=None
+kubectl annotate serviceaccount loki-lab-ksa \
+  --namespace loki \
+  iam.gke.io/gcp-service-account=loki-lab-gsa@loki-lab.iam.gserviceaccount.com
 ```
 
-For GEL, you'll also need bind the `tokengen` KSA as well:
+For GEL installs, there will be another service account that needs access to the GCS buckets that were created. This KSA is created via the Loki helm chart, so we can't annotate it now. Instead, we'll annotate it via the Helm chart `values.yaml` file, outlined below. You can see where the `tokengen` KSA gets its annotations via the Helm chart [here](https://github.com/grafana/loki/blob/52a8ef8a50397574457ef586722bfec222e914de/production/helm/loki/templates/tokengen/serviceaccount-tokengen.yaml).
+
+While it may be possible to modify the auto-generated `-tokengen` KSA, it's easier to simply bind it in the same way as the KSA you created.
+
+### 8. Bind the GSA to the KSA
+
+<!-- ### TODO: RENAME THIS ### -->
+
+Bind the GSA to the KSA:
 
 ```txt
-gcloud storage buckets add-iam-policy-binding gs://<BUCKET_NAME> \
-  # --role=roles/storage.objectUser \
-  --member=principal://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<PROJECT_ID>.svc.id.goog/subject/ns/<NAMESPACE>/sa/<loki.name>-tokengen \
-  --condition=None
+gcloud projects add-iam-policy-binding <PROJECT_NAME> \
+  --member="serviceAccount:<GSA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com" \
+  --role="roles/iam.workloadIdentityUser"
 ```
 
-Replace `<loki.name>` with the name of the `tokengen` KSA. It uses a fixed name, either `loki-tokengen` for Loki, or `enterprise-logs-tokengen` for GEL. It's defined [here](https://github.com/grafana/loki/blob/4b5925a28e61f29a20aaabda3a159386a8ba7638/production/helm/loki/templates/tokengen/_helpers.yaml),
- which is based on `loki.name` defined [here](https://github.com/grafana/loki/blob/716d54e2a9617a80c2496a46e9c4cbf8ed51a5d9/production/helm/loki/templates/_helpers.tpl).
-
-While it may be possible to modify the auto-generated `-tokengen` KSA, it's easier to simply grant it the same permissions as the KSA you created for the other Loki/GEL services.
+Replace `<GSA_NAME>` with your GCP project name, and `<PROJECT_NAME>` with the name of the GSA created above.
 
 Example:
 
 ```txt
-gcloud storage buckets add-iam-policy-binding gs://loki-lab-chunks \
-  # --role=roles/storage.objectUser \
-  --member=principal://iam.googleapis.com/projects/1234567890/locations/global/workloadIdentityPools/loki-lab.svc.id.goog/subject/ns/loki/sa/loki-tokengen \
-  --condition=None
+gcloud projects add-iam-policy-binding loki-lab \
+  --member="serviceAccount:loki-lab-gsa@loki-lab.iam.gserviceaccount.com" \
+  --role="roles/iam.workloadIdentityUser"
 ```
 
 ## Helm
@@ -175,9 +215,20 @@ A Simple Scalable deployment breaks up Loki/GEL operations into distinct `read`,
 The example below does not represent a complete `values.yaml` file, only the parameters that need to be updated to run Loki/GEL with workload federation.
 
 The `serviceAccount` is automatically applied to `read`, `write`, `backend`, and `adminApi`. The `tokenGen` job creates its own KSA,
-which necessitates the additional IAM policy binding in the **Add IAM Policy to Bucket(s)** step above.
+which necessitates the additional annotations described the **Annotate the KSA to Impersonate the GSA** step above and reflected in the
+ `values.yaml` example below.
+
+<!-- ### TODO: FINALIZE YAML ### -->
 
 ```yaml
+# GEL ONLY: enterprise.*
+enterprise:
+  tokengen:
+    # Add this annotation to bind the tokengen KSA to the GSA you created.
+    # Example: iam.gke.io/gcp-service-account=loki-lab-gsa@loki-lab.iam.gserviceaccount.com
+    annotations: 
+      - iam.gke.io/gcp-service-account=<GSA_NAME>@<PROJECT_NAME>.iam.gserviceaccount.com
+
 serviceAccount:
   create: false
   name: <KSA_NAME>
@@ -197,9 +248,7 @@ loki:
     bucketNames:
       chunks: <CHUNKS_BUCKET_NAME>
       ruler: <RULER_BUCKET_NAME>
-      # GEL ONLY: bucketNames.admin
+      # GEL ONLY: admin bucket
       admin: <ADMIN_BUCKET_NAME>
     type: gcs
 ```
-
-Replace `<KSA_NAME>` with the name of the KSA created in the **Create Kubernetes Service Account** and each `<*_BUCKET_NAME>` with the name of the buckets created in the **Create GCS Bucket(s)** step above.
