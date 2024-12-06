@@ -372,4 +372,4 @@ loki:
 ```
 
 Replace `FIXME_KSA_NAME` with the name of the KSA created in the **Create trust policy content** step above, `FIXME_AWS_REGION` with the AWS region where
- your cluster is located, and each `FIXME_*CHUNKS*_BUCKET_NAME` with the name of the buckets created in the Create GCS Bucket(s) step above.
+ your cluster is located, and each `FIXME_*CHUNKS*_BUCKET_NAME` with the name of the buckets created in the **Create S3 Bucket(s)** step above.
