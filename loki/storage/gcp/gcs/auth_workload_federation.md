@@ -116,7 +116,7 @@ kubectl create serviceaccount loki-lab-ksa \
 
 ### 5. Add IAM Policy to Bucket(s)
 
-> [!INFO]
+> [!NOTE]
 > The [pre-defined `role/storage.objectUser` role](https://cloud.google.com/storage/docs/access-control/iam-roles) is sufficient for Loki / GEL to
  operate. See [IAM permissions for Cloud Storage](https://cloud.google.com/storage/docs/access-control/iam-permissions) for details about each individual
  permission. You can use this predefined role or create your own with matching permissions.
