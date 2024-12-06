@@ -31,6 +31,10 @@ This document covers **service account impersonation**, where you link a Kuberne
 
 ## Instructions
 
+> [!IMPORTANT]
+> The roles and policies below are the _minimum_ required for this setup. They do not take into account your organizations security requirements.
+ It is your responsibility to secure your environment.
+
 ### 1. Enable Workload Identity on your GKE Cluster
 
 Enable WIF on your GKE cluster if needed. GKE Autopilot clusters enable WIF automatically, while Standard clusters must enable it explicitly.

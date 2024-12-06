@@ -22,9 +22,14 @@
 
 ## Service Account Authentication
 
-This document covers **Google service account (GSA) authentication**, where a service account and secret key are used to authenticate to the GCS API in order to access GCS resources.
+This document covers **Google service account (GSA) authentication**, where a service account and secret key are used to authenticate to the GCS API
+ in order to access GCS resources.
 
 ## Instructions
+
+> [!IMPORTANT]
+> The roles and policies below are the _minimum_ required for this setup. They do not take into account your organizations security requirements.
+ It is your responsibility to secure your environment.
 
 ### 1. Create a Google Service Account
 
