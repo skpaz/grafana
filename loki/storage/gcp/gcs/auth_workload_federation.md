@@ -23,13 +23,18 @@ There are two methods to enable WIF for GKE.
 1. IAM principal authorization via Kubernetes `ServiceAccount`.
 2. Use a Kubernetes `ServiceAccount` to impersonate an Google service account.
 
-This document covers **IAM principal authorization**, where a Kubernetes service account is bound directly to your GCS buckets via IAM policy in order to authenticate to the GCS API and access GCS resources.
+This document covers **IAM principal authorization**, where a Kubernetes service account is bound directly to your GCS buckets via IAM policy
+ in order to authenticate to the GCS API and access GCS resources.
 
 > [!WARNING]
 > Per GCP, service account impersonation should only be used if the limitations
 imposed by principal authorization causes problems. See **Resources > Authenticate to Google Cloud APIs from GKE workloads** for more information.
 
 ## Instructions
+
+> [!IMPORTANT]
+> The roles and policies below are the _minimum_ required for this setup. They do not take into account your organizations security requirements.
+ It is your responsibility to secure your environment.
 
 ### 1. Enable Workload Identity on your GKE Cluster
 
