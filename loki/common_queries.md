@@ -78,6 +78,9 @@ count_over_time(
 
 ## Regex parser
 
+> [!NOTE]
+> Special characters must be escaped twice. `\s` becomes `\\s`, `\?` becomes `\\?`, etc.
+
 ```txt
 { label="value" } |= "string match" 
 | regexp "^.*objectName=(?P<objectName>.*)\\s.*$"
