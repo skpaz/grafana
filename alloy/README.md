@@ -4,17 +4,21 @@
 
 | Port | Protocol | Component | Note |
 | - | - | - | - |
-| 12345 | TCP | Alloy web UI                  | HTTP           |
-| 4317  | TCP | `otelcol.receiver.otlp`       | gRPC           |
-| 4318  | TCP | `otelcol.receiver.otlp`       | HTTP           |
-| 9999  | TCP | `prometheus.receive_http`     | HTTP           |
-| 14250 | TCP | `otel.receiver.jaeger`        | gRPC           |
-| 6832  | TCP | `otel.receiver.jaeger`        | Thrift         |
-| 6831  | TCP | `otel.receiver.jaeger`        | Thrift Compact |
-| 14268 | TCP | `otel.receiver.jaeger`        | Thrift HTTP    |
-| 9411  | TCP | `otel.exporter.loadbalancing` |                |
+| 12345 | TCP | Alloy web UI       | HTTP           |
+| 4317  | TCP | OTLP               | gRPC           |
+| 4318  | TCP | OTLP               | HTTP           |
+| 9999  | TCP | Prometheus         | HTTP           |
+| 14250 | TCP | OTLP Jaeger        | gRPC           |
+| 6832  | TCP | OTLP Jaeger        | Thrift         |
+| 6831  | TCP | OTLP Jaeger        | Thrift Compact |
+| 14268 | TCP | OTLP Jaeger        | Thrift HTTP    |
+| 9411  | TCP | OTel Load Balancer |                |
 
 ## K8s Monitor Helm Chart
+
+### Feature Map
+
+### v2
 
 | Feature                                    | values.yaml                           | K8s Pod            | K8s Type    |
 | ------------------------------------------ | ------------------------------------- | ------------------ | ----------- |
