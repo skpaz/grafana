@@ -1,0 +1,265 @@
+cluster:
+  name: FIXME_CLUSTER_NAME
+destinations:
+  - name: grafana-cloud-metrics
+    type: prometheus
+    url: FIXME_PROMETHEUS_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+  - name: grafana-cloud-logs
+    type: loki
+    url: FIXME_LOKI_PUSH_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+  - name: grafana-cloud-traces
+    type: otlp
+    url: FIXME_TEMPO_URL
+    protocol: grpc
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+    metrics:
+      enabled: false
+    logs:
+      enabled: false
+    traces:
+      enabled: true
+  - name: grafana-cloud-profiles
+    type: pyroscope
+    url: FIXME_PYROSCOPE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+global:
+  platform: openshift
+clusterMetrics:
+  enabled: true
+  opencost:
+    enabled: true
+    metricsSource: grafana-cloud-metrics
+    opencost:
+      exporter:
+        defaultClusterId: FIXME_CLUSTER_NAME
+      prometheus:
+        existingSecretName: grafana-cloud-metrics-grafana-k8s-monitoring
+        external:
+          url: FIXME_PROMETHEUS_REMOTE_WRITE_URL
+  kepler:
+    enabled: true
+  node-exporter:
+    enabled: true
+    deploy: false
+    namespace: openshift-monitoring
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    service:
+      scheme: https
+      portName: https
+  kube-state-metrics:
+    enabled: true
+    deploy: false
+    namespace: openshift-monitoring
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    service:
+      scheme: https
+      portName: https-main
+clusterEvents:
+  enabled: true
+nodeLogs:
+  enabled: true
+podLogs:
+  enabled: true
+applicationObservability:
+  enabled: true
+  receivers:
+    otlp:
+      grpc:
+        enabled: true
+        port: 4317
+      http:
+        enabled: true
+        port: 4318
+    zipkin:
+      enabled: true
+      port: 9411
+  connectors:
+    grafanaCloudMetrics:
+      enabled: true
+autoInstrumentation:
+  enabled: true
+profiling:
+  enabled: true
+alloy-metrics:
+  enabled: true
+  alloy:
+    extraEnv:
+      - name: GCLOUD_RW_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: alloy-metrics-remote-cfg-grafana-k8s-monitoring
+            key: password
+      - name: CLUSTER_NAME
+        value: FIXME_CLUSTER_NAME
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: GCLOUD_FM_COLLECTOR_ID
+        value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-$(POD_NAME)
+  remoteConfig:
+    enabled: true
+    url: FIXME_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+alloy-singleton:
+  enabled: true
+  alloy:
+    extraEnv:
+      - name: GCLOUD_RW_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: alloy-singleton-remote-cfg-grafana-k8s-monitoring
+            key: password
+      - name: CLUSTER_NAME
+        value: FIXME_CLUSTER_NAME
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: GCLOUD_FM_COLLECTOR_ID
+        value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-$(POD_NAME)
+  remoteConfig:
+    enabled: true
+    url: FIXME_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+alloy-logs:
+  enabled: true
+  global:
+    podSecurityContext:
+      seLinuxOptions:
+        type: container_logreader_t
+  alloy:
+    extraEnv:
+      - name: GCLOUD_RW_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: alloy-logs-remote-cfg-grafana-k8s-monitoring
+            key: password
+      - name: CLUSTER_NAME
+        value: FIXME_CLUSTER_NAME
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: GCLOUD_FM_COLLECTOR_ID
+        value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-logs-$(NODE_NAME)
+  remoteConfig:
+    enabled: true
+    url: FIXME_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+alloy-receiver:
+  enabled: true
+  alloy:
+    extraPorts:
+      - name: otlp-grpc
+        port: 4317
+        targetPort: 4317
+        protocol: TCP
+      - name: otlp-http
+        port: 4318
+        targetPort: 4318
+        protocol: TCP
+      - name: zipkin
+        port: 9411
+        targetPort: 9411
+        protocol: TCP
+    extraEnv:
+      - name: GCLOUD_RW_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: alloy-receiver-remote-cfg-grafana-k8s-monitoring
+            key: password
+      - name: CLUSTER_NAME
+        value: FIXME_CLUSTER_NAME
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: GCLOUD_FM_COLLECTOR_ID
+        value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-receiver-$(NODE_NAME)
+  remoteConfig:
+    enabled: true
+    url: FIXME_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
+alloy-profiles:
+  enabled: true
+  alloy:
+    extraEnv:
+      - name: GCLOUD_RW_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: alloy-profiles-remote-cfg-grafana-k8s-monitoring
+            key: password
+      - name: CLUSTER_NAME
+        value: FIXME_CLUSTER_NAME
+      - name: NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: GCLOUD_FM_COLLECTOR_ID
+        value: grafana-k8s-monitoring-$(CLUSTER_NAME)-$(NAMESPACE)-alloy-profiles-$(NODE_NAME)
+  remoteConfig:
+    enabled: true
+    url: FIXME_REMOTE_WRITE_URL
+    auth:
+      type: basic
+      username: FIXME_TENANT_ID
+      password: FIXME_ALLOY_TOKEN
