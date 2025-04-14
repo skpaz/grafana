@@ -5,7 +5,7 @@
 
 ## Install Alloy
 
-```txt
+```bash
 tmpfile=$(mktemp)
 installdir="/usr/local/sbin"
 curl -L https://github.com/grafana/alloy/releases/download/FIXME_VERSION_NUMBER/alloy-freebsd-amd64.zip -o ${tmpfile}
@@ -20,7 +20,7 @@ Some Alloy components require root, so `/usr/local/sbin` is the most appropriate
 
 ## Configure Alloy
 
-```txt
+```bash
 sudo sh -c 'cat > /usr/local/etc/alloy/config.alloy' << 'EOF'
 
 FIXME_ADD_CONFIG_ALLOY
@@ -32,7 +32,7 @@ EOF
 
 Create service:
 
-```txt
+```bash
 sudo sh -c 'cat > /usr/local/etc/rc.d/alloy' << 'EOF'
 #!/bin/sh
 
@@ -73,13 +73,13 @@ EOF
 
 Set execution bit:
 
-```txt
+```bash
 chmod +x /usr/local/etc/rc.d/alloy
 ```
 
 Enable the service on boot:
 
-```txt
+```bash
 sudo sh -c 'cat >> /etc/rc.conf.local' << 'EOF'
 alloy_enable="YES"
 EOF
@@ -89,7 +89,7 @@ EOF
 
 Start the service to test it:
 
-```txt
+```bash
 service alloy start
 ```
 
