@@ -1,0 +1,254 @@
+// This is a WIP. While it should work, it may not be optimized and probably won't account for all use cases.
+
+// --- METRICS
+
+// export unix metrics
+prometheus.exporter.unix "local" {
+  // set freebsd-compatible collectors
+  // https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.unix/#collectors-list
+  // REMOVED: supervisord (not used), runit (not used), ntp (removed in next release), exec (not useful)
+  // QUESTIONABLE: devstat, netisr
+  set_collectors = ["boottime", "cpu", "devstat", "filesystem", "loadavg", "meminfo", "netdev", "netisr", "time", "uname"]
+  cpu {
+    // enable cpu info
+    info = true
+  }
+  filesystem {
+    // defaults below; fix
+    // tmpfs, devtmpfs, devfs, iso9660, overlay, aufs, squashfs, nullfs?
+    fs_types_exclude     = "^devfs$"
+    mount_points_exclude = "^/(dev)($|/)"
+  }
+  netdev {
+    // enable address info
+    address_info = true
+  }
+}
+
+// scrape metrics
+prometheus.scrape "local" {
+  targets    = prometheus.exporter.unix.local.targets
+  forward_to = [prometheus.remote_write.grafana.receiver]
+}
+
+// write metrics to grafana
+prometheus.remote_write "grafana" {
+  endpoint {
+    url = "FIXME_PROMETHEUS_WRITE_URL"
+    basic_auth {
+      username = "FIXME_TENANT_ID"
+      password = "FIXME_ALLOY_TOKEN"
+    }
+  }
+}
+
+// --- LOGS
+
+// source generic logs
+loki.source.file "varlogs" {
+  targets = [
+    { __path__ = "/var/log/gateways/latest.log" },
+    { __path__ = "/var/log/dhcpd/latest.log" },
+  ]
+  forward_to = [loki.process.varlogs.receiver]
+}
+
+// process generic logs
+loki.process "varlogs" {
+  // extract syslog header info, leave the rest of the message alone
+  stage.regex {
+    expression = "^<(?P<priority>\\d{1,3})>\\d\\s(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}-\\d{2}:\\d{2})\\s(?P<hostname>[a-z0-9-_.]+)\\s(?P<service>\\w+)\\s(?P<pid>\\d+)\\s-\\s\\[.*\\]\\s.*$"
+  }
+  // use log timestamp for loki timestamp
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339"
+  }
+  // add labels
+  stage.labels {
+    values = {
+      hostname = "",
+      service_name = "service",
+    }
+  }
+  // add structured metadata
+  stage.structured_metadata {
+    values = {
+      detected_level = "",
+      pid = "",
+      priority = "",
+    }
+  }
+  forward_to = [loki.write.grafana.receiver]
+}
+
+// source filter logs
+loki.source.file "varlogs_filter" {
+  targets = [
+    { __path__ = "/var/log/filter/latest.log" },
+  ]
+  forward_to = [loki.process.varlogs_filter.receiver]
+}
+
+// process filter logs
+loki.process "varlogs_filter" {
+  // extract syslog header and filter log data
+  stage.regex {
+    expression = "^<(?P<priority>\\d{1,3})>\\d\\s(?P<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}-\\d{2}:\\d{2})\\s(?P<hostname>[a-z0-9-_.]+)\\s(?P<service>\\w+)\\s(?P<pid>\\d+)\\s-\\s\\[.*\\]\\s(?:[\\d]+),(?:[\\d]+)?,(?:[\\d]+)?,(?:[\\w\\d]{32}),(?P<interface>[\\w\\d]+),(?P<reason>[\\w\\d]+),(?P<action>[\\w\\d]+),(?P<direction>[\\w\\d]+),(?P<ip_version>[46]),.*$"
+  }
+
+  // set loki timestamp to log timestamp value
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339"
+  }
+
+  // add labels
+  stage.labels {
+    values = {
+      service_name = "service",
+      hostname = "",
+      interface = "",
+      // add ip_version for match blocks below; dropped at the end
+      ip_version = "",
+    }
+  }
+
+  // add strucutred metadata
+  stage.structured_metadata {
+    values = {
+      action = "",
+      direction = "",
+      pid = "",
+      priority = "",
+      reason = "",
+    }
+  }
+
+  // drop
+  stage.drop {
+    // drop any logs for outbound traffic or pass/rdr traffic in either direction
+    source = "action,direction"
+    expression = "^(?:\\w+;out)|(?:(?:pass|rdr);in|out)$"
+  }
+
+  // match ipv4
+  stage.match {
+    selector = "{ ip_version = \"4\" }"
+
+    // extract protocol
+    stage.regex {
+      // expression = "^.*,(?:0[xX][0-9a-fA-F]+),(?:(?:[\\d]{1,2}|[cCeE]{,2}))?,(?:[\\d]{1,10}),(?:[\\d]{1,16}),(?:[\\d]{1,13}),(?:DF|MF|none)?,(?:[\\d]{1,8}),(?P<protocol>[\\w]+),(?:[\\d]{1,16}),.*$"
+      expression = "^([^,\\r\\n]*,){16}(?P<protocol>[\\w]+),.*$"
+    }
+
+    // add protocol label for match blocks below; dropped at the end
+    stage.labels {
+      values = {
+        protocol = "",
+      }
+    }
+
+    // match icmp
+    stage.match {
+      selector = "{ ip_version = \"4\", protocol = \"icmp\" }"
+      // extract src_ip, dst_ip
+      stage.regex {
+        expression = "^.*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),(?P<dst_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),.*$"
+      }
+    }
+
+    // match tcp|udp
+    stage.match {
+      selector = "{ ip_version = \"4\", protocol =~ \"tcp|udp\" }"
+      // extract src_ip, dst_ip, src_port, dst_port
+      stage.regex {
+        expression = "^.*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),(?P<dst_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),(?P<src_port>\\d{1,5}),(?P<dst_port>\\d{1,5}),.*$"
+      }
+    }
+
+    // match other
+    stage.match {
+      selector = "{ ip_version = \"4\", protocol =~ \".*\" }"
+      // extract src_ip, dst_ip, src_port, dst_port
+      stage.regex {
+        expression = "^.*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),(?P<dst_ip>(?:(?:25[0-5]|(?:2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}),(?P<src_port>\\d{1,5}),(?P<dst_port>\\d{1,5}),.*$"
+      }
+    }
+  }
+
+  // match ipv6
+  stage.match {
+    selector = "{ ip_version = \"6\" }"
+    stage.regex {
+      // extract protocol
+      expression = "^([^,\\r\\n]*,){12}(?P<protocol>[\\w]+),.*$"
+    }
+
+    // add protocol label for match blocks below; dropped at the end
+    stage.labels {
+      values = {
+        protocol = "",
+      }
+    }
+
+    // match icmp
+    stage.match {
+      selector = "{ ip_version = \"6\", protocol = \"ipv6-icmp\" }"
+      // extract src_ip, dst_ip
+      stage.regex {
+        expression = "^.*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),(?P<dst_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),.*$"
+      }
+    }
+
+    // match tcp|udp
+    stage.match {
+      selector = "{ ip_version = \"6\", protocol =~ \"tcp|udp\" }"
+      // extract src_ip, dst_ip, src_port, and dst_port
+      stage.regex {
+        expression = ".*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),(?P<dst_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),(?P<src_port>\\d{1,5}),(?P<dst_port>\\d{1,5}),.*$"
+      }
+    }
+
+    // match other; placeholder for future protocols
+    stage.match {
+      selector = "{ ip_version = \"6\", protocol =~ \".*\" }"
+      // extract src_ip, dst_ip, src_port, and dst_port
+      stage.regex {
+        expression = ".*,(?:[\\d]{1,16}),(?P<src_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),(?P<dst_ip>(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]))),(?P<src_port>\\d{1,5}),(?P<dst_port>\\d{1,5}),.*$"
+      }
+    }
+  }
+
+  // -- add structured metadata
+  stage.structured_metadata {
+    values = {
+      ip_version = "",
+      protocol = "",
+      src_ip = "",
+      dst_ip = "", 
+      // ports will be null for icmp; null labels are dropped
+      src_port = "",
+      dst_port = "",
+    }
+  }
+
+  // --- drop labels
+  stage.label_drop {
+    // these were needed for match blocks above; we don't want to send them to Loki
+    // they're preserved as metadata
+    values = [ "ip_version", "protocol" ]
+  }
+  forward_to = [loki.write.grafana.receiver]
+}
+
+// write logs to grafana
+loki.write "grafana" {
+  endpoint {
+    url = "FIXME_LOKI_PUSH_URL"
+    basic_auth {
+      username = "FIXME_TENANT_ID"
+      password = "FIXME_ALLOY_TOKEN"
+    }
+  }
+}
