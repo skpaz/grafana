@@ -13,6 +13,10 @@ Recommend the use of the configuration wizard in
  generate a Helm values file. An example values.yaml file is included, but
  is not necessarily up-to-date.
 
+>[!NOTE]
+> This Helm chart will take into account OpenShifts built-in observability stack
+> and make use of the existing node_exporter and kube-state-metrics instances.
+
 Go to **Infrastructure > Kubernetes > Configuration > [Tab] Cluster configuration**
  to access the wizard.
 
