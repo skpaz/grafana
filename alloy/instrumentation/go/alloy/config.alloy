@@ -16,17 +16,17 @@ otelcol.receiver.otlp "local" {
 
 otelcol.processor.batch "default" {
   output {
-    metrics = [otelcol.exporter.otlp.grafana_cloud_otlp.input]
-    logs    = [otelcol.exporter.otlp.grafana_cloud_otlp.input]
-    traces  = [otelcol.exporter.otlp.grafana_cloud_otlp.input]
+    metrics = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
+    logs    = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
+    traces  = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
   }
 }
 
 // --- endpoints
 
-otelcol.exporter.otlp "grafana_cloud_otlp" {
+otelcol.exporter.otlphttp "grafana_cloud_otlp" {
   client {
-    // example: otlp-gateway-prod-0.example.net/otlp
+    // example: https://otlp-gateway-prod-0.example.net/otlp
     endpoint = "FIXME_OTLP_ENDPOINT_URL"
     auth     = otelcol.auth.basic.grafana_cloud_otlp.handler
   }
