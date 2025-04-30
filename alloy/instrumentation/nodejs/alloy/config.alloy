@@ -1,3 +1,7 @@
+livedebugging {
+  enabled = false
+}
+
 // --- otel receiver
 
 otelcol.receiver.otlp "local" {
@@ -23,13 +27,12 @@ otelcol.processor.batch "default" {
 
 otelcol.exporter.otlphttp "grafana_cloud_otlp" {
   client {
-    // example: https://otlp-gateway-prod-0.example.net/otlp
-    endpoint = "FIXME_OTLP_ENDPOINT_URL"
+    endpoint = "https://FIXME_OTEL_ENDPOINT.grafana.net/otlp"
     auth     = otelcol.auth.basic.grafana_cloud_otlp.handler
   }
 }
 
 otelcol.auth.basic "grafana_cloud_otlp" {
   username = FIXME_TENANT_ID
-  password = "FIXME_ALLOY_CLOUD_ACCESS_TOKEN"
+  password = "FIXME_ALLOY_TOKEN"
 }
