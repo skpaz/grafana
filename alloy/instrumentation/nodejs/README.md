@@ -25,6 +25,10 @@ curl http://localhost:8080/cities \
 curl http://localhost:8080/cities/{:id}
 ```
 
+## Alloy
+
+You will need to update `/alloy/config.alloy` with your OTLP endpoint, tenant ID, and token.
+
 ## References
 
 - [Node.js | OpenTelemetry](https://opentelemetry.io/docs/languages/js/getting-started/nodejs/)
