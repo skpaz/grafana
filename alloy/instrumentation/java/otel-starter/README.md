@@ -6,6 +6,14 @@ Built with Maven 3.9.9 and OpenJDK 24. This uses the
 
 ## Build
 
+Create .jar file.
+
+```plaintext
+mvn clean install
+```
+
+Build containers:
+
 ```plaintext
 docker compose up --build
 ```
@@ -19,6 +27,10 @@ curl -X POST http://localhost:8080/cities \
   -H "Content-Type: application/json" \
   -d '{"name":"Boston","state":"MA","county":"Suffolk","founded":1625,"population":675647}'
 ```
+
+## Alloy
+
+You will need to update `/alloy/config.alloy` with your OTLP endpoint, tenant ID, and token.
 
 ## References
 

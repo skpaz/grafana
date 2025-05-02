@@ -24,6 +24,10 @@ curl http://localhost:8080/cities \
 curl http://localhost:8080/cities/{:id}
 ```
 
+## Alloy
+
+You will need to update `/alloy/config.alloy` with your OTLP endpoint, tenant ID, and token.
+
 ## References
 
 - [Implementing OpenTelemetry in a Gin application | SigNoz](https://signoz.io/blog/opentelemetry-gin/)
