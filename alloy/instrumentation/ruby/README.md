@@ -2,8 +2,35 @@
 
 Built with [Ruby 3.4.4](https://www.ruby-lang.org/en/),
  [Gem 3.6.9](https://rubygems.org/), and [Rails 8.0.2](https://rubyonrails.org/).
+ It uses [opentelemetry-ruby-rails](https://rubygems.org/gems/opentelemetry-instrumentation-rails/)
+ and the [OTel SDK for Ruby](https://opentelemetry.io/docs/languages/ruby/)
+ to instrument traces.
 
 ## Setup
+
+> Rails is a web application development framework written in the Ruby
+ programming language. It is designed to make programming web applications
+ easier by making assumptions about what every developer needs to get started.
+ It allows you to write less code while accomplishing more than many other
+ languages and frameworks. Experienced Rails developers also report that it
+ makes web application development more fun.
+
+The `http-api` app was created via the `rails new` command, which creates the
+ foundation of a new Rails app. Below is a list of the files that were either
+ modified or created:
+
+- `http-api/app/controllers/cities_controller.rb`
+- `http-api/app/models/city.rb`
+- `http-api/config/initializers/cors.rb`
+- `http-api/config/initializers/opentelemetry.rb`
+- `http-api/config/routes.rb`
+- `http-api/db/migrate/20250611152646_create_cities.rb`
+- `http-api/db/seeds.rb`
+- `http-api/Dockerfile`
+- `http-api/.dockerignore`
+- `http-api/.gitignore`
+
+Rails isn't as simple as other examples. Some additional steps are required.
 
 ### Docker
 
@@ -31,15 +58,16 @@ If you use VSCode, you may need to use this instead:
 EDITOR="code --wait" http-api/bin/rails credentials:edit
 ```
 
-This will create `http-api/config/master_key.yml` and open `http-api/config/credentials.yml.enc`
- in your editor. Save `credentials.yml.enc` and exit.
+This will create `http-api/config/master_key.yml` and open
+ `http-api/config/credentials.yml.enc` in your editor. Save
+ `credentials.yml.enc` and exit.
 
 ### Database
 
 You'll also need to create a new database. The migration and seed files are
  included, so the three commands below should be all that is necessary.
 
-Since we want to create a `production` database, we set `RAILS_ENV` for each 
+Since we want to create a `production` database, we set `RAILS_ENV` for each
  command, otherwise it would default to `development`.
 
 ```plaintext
@@ -81,6 +109,9 @@ curl http://localhost:8080/cities/{:id}
 ```
 
 ## Alloy
+
+You will need to update `/alloy/config.alloy` with your OTLP endpoint,
+ tenant ID, and token.
 
 ## Resources
 
