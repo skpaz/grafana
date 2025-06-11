@@ -3,7 +3,7 @@
 Built with Python 3.13.5 and [FastAPI](https://fastapi.tiangolo.com/) 0.115.12.
  It uses [opentelemetry-instrumentation-fastapi](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/fastapi/fastapi.html),
  the [OTel SDK for Python](https://opentelemetry.io/docs/languages/python/),
- and some additional OTel components to instrumented traces.
+ and some additional OTel components to instrument traces.
 
 ## Build
 
