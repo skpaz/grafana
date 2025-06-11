@@ -1,0 +1,34 @@
+// --- otel receiver
+
+otelcol.receiver.otlp "local" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
+    logs    = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
+    traces  = [otelcol.exporter.otlphttp.grafana_cloud_otlp.input]
+  }
+}
+
+// --- endpoints
+
+otelcol.exporter.otlphttp "grafana_cloud_otlp" {
+  client {
+    endpoint = "https://FIXME_OTEL_ENDPOINT.grafana.net/otlp"
+    auth     = otelcol.auth.basic.grafana_cloud_otlp.handler
+  }
+}
+
+otelcol.auth.basic "grafana_cloud_otlp" {
+  username = FIXME_TENANT_ID
+  password = "FIXME_ALLOY_TOKEN"
+}

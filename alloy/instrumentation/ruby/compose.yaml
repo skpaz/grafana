@@ -1,0 +1,19 @@
+---
+services:
+  http-api:
+    build: http-api/.
+    environment:
+      - SERVICE_NAME=http-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_EXPORTER_OTLP_INSECURE=true
+      - RAILS_MASTER_KEY
+    ports:
+      - "8080:8080"
+  alloy:
+    image: grafana/alloy:latest
+    command: run /etc/alloy/config.alloy --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data
+    ports:
+      - "54321:12345"
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy
